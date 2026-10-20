@@ -1,0 +1,45 @@
+name: Daily Auto Commit
+
+on:
+  schedule:
+    - cron: '17 9,17 * * *'
+      timezone: Asia/Jakarta
+  push:
+    paths:
+      - .github/workflows/daily-commit.yml
+      - scripts/daily-commit.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: automit-daily-commit
+  cancel-in-progress: false
+
+jobs:
+  commit:
+    name: Commit harian
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TZ: Asia/Jakarta
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      COMMIT_AUTHOR_NAME: ${{ vars.COMMIT_AUTHOR_NAME || github.actor }}
+      COMMIT_AUTHOR_EMAIL: ${{ vars.COMMIT_AUTHOR_EMAIL }}
+      AUTOMIT_ACTOR: ${{ github.actor }}
+      AUTOMIT_ACTOR_ID: ${{ github.actor_id }}
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - name: Siapkan Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Commit dan push aktivitas harian
+        run: node scripts/daily-commit.mjs

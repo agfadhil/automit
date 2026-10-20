@@ -1,0 +1,14 @@
+{
+  "name": "automit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Halaman status dan commit GitHub otomatis harian, tanpa dependensi runtime.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check assets/app.js && node --check assets/status.js && node --check assets/demo.js"
+  },
+  "engines": { "node": ">=22" }
+}
