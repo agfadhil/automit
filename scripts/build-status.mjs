@@ -5,6 +5,42 @@ import { pathToFileURL } from 'node:url';
 export const WORKFLOW_FILE = 'daily-commit.yml';
 export const API_VERSION = '2026-03-10';
 export const FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'action_required', 'startup_failure', 'stale']);
+export const DEFAULT_SCHEDULE = {
+  timezone: 'Asia/Jakarta',
+  hours: [8, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+  minute: 0,
+};
+
+function wibDateKey(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+function filterRedundantDailyRuns(rawRuns, commitsByRun) {
+  // Sort oldest-first to find the first successful run per WIB day.
+  // Subsequent scheduled runs on the same WIB day that exit 0 without creating a commit
+  // are no-op checks after the 1x daily target has already been met.
+  const chronological = [...rawRuns].reverse();
+  const succeededDays = new Set();
+  const redundantIds = new Set();
+  for (const run of chronological) {
+    const day = wibDateKey(run.run_started_at || run.created_at);
+    if (!day) continue;
+    if (run.status === 'completed' && run.conclusion === 'success') {
+      const hasCommit = commitsByRun.has(Number(run.id));
+      if (succeededDays.has(day) && !hasCommit) {
+        redundantIds.add(Number(run.id));
+      } else {
+        succeededDays.add(day);
+      }
+    }
+  }
+  return rawRuns.filter((run) => !redundantIds.has(Number(run.id)));
+}
 
 export function sanitizeMessage(value, limit = 1800) {
   return String(value ?? '')
@@ -115,9 +151,9 @@ export async function collectStatus({
       runsById.set(Number(triggeringRun.id), triggeringRun);
     }
   }
-  const rawRuns = [...runsById.values()].sort((a, b) =>
+  const sortedRawRuns = [...runsById.values()].sort((a, b) =>
     Date.parse(b.run_started_at || b.created_at) - Date.parse(a.run_started_at || a.created_at) || Number(b.id) - Number(a.id));
-  const hasRuns = rawRuns.length > 0;
+  const hasRuns = sortedRawRuns.length > 0;
   const commits = hasRuns
     ? await get(`${prefix}/commits?path=data%2Factivity.json&per_page=100&sha=${encodeURIComponent(branch)}`)
     : [];
@@ -126,6 +162,7 @@ export async function collectStatus({
     const runId = /^Automit-Run: (\d+)$/m.exec(commit.commit?.message || '')?.[1];
     if (runId) commitsByRun.set(Number(runId), commit);
   }
+  const rawRuns = filterRedundantDailyRuns(sortedRawRuns, commitsByRun);
   const runs = rawRuns.map((run) => normalizeRun(run, commitsByRun));
   let lastSuccess = runs.find((run) => run.conclusion === 'success') || null;
   if (!lastSuccess && hasRuns) {
@@ -160,7 +197,7 @@ export async function collectStatus({
       name: 'Daily Auto Commit',
       url: `${repo.html_url}/actions/workflows/${WORKFLOW_FILE}`,
     },
-    schedule: { timezone: 'Asia/Jakarta', hours: [9, 17], minute: 17 },
+    schedule: DEFAULT_SCHEDULE,
     generatedAt: now.toISOString(),
     lastSuccess,
     latestRun: runs[0] || null,

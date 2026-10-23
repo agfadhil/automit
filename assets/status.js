@@ -1,4 +1,9 @@
 export const TIME_ZONE = 'Asia/Jakarta';
+export const DEFAULT_SCHEDULE = {
+  timezone: TIME_ZONE,
+  hours: [8, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+  minute: 0,
+};
 const DAY = 86_400_000;
 const OFFSET = 7 * 60 * 60 * 1000;
 const failures = new Set(['failure', 'timed_out', 'action_required', 'startup_failure', 'stale']);
@@ -59,12 +64,23 @@ export function runState(run) {
   return 'waiting';
 }
 
-export function nextSchedule(now = new Date(), schedule = {}) {
+export function hasSucceededOnDate(runs = [], lastSuccess = null, targetDateKey) {
+  if (!targetDateKey) return false;
+  if (lastSuccess && runState(lastSuccess) === 'success' && dateKey(lastSuccess.startedAt || lastSuccess.completedAt) === targetDateKey) {
+    return true;
+  }
+  return Array.isArray(runs) && runs.some((run) => runState(run) === 'success' && dateKey(run.startedAt) === targetDateKey);
+}
+
+export function nextSchedule(now = new Date(), schedule = DEFAULT_SCHEDULE, { succeededToday = false } = {}) {
   const key = dateKey(now);
   const midnight = Date.parse(`${key}T00:00:00+07:00`);
-  const hours = (schedule.hours || [9, 17]).filter((hour) => Number.isInteger(hour) && hour >= 0 && hour < 24).sort((a, b) => a - b);
-  const minute = Number.isInteger(schedule.minute) ? schedule.minute : 17;
-  for (let day = 0; day < 2; day += 1) {
+  const hours = (schedule?.hours?.length ? schedule.hours : DEFAULT_SCHEDULE.hours)
+    .filter((hour) => Number.isInteger(hour) && hour >= 0 && hour < 24)
+    .sort((a, b) => a - b);
+  const minute = Number.isInteger(schedule?.minute) ? schedule.minute : DEFAULT_SCHEDULE.minute;
+  const startDay = succeededToday ? 1 : 0;
+  for (let day = startDay; day < 2; day += 1) {
     for (const hour of hours) {
       const time = new Date(midnight + day * DAY + hour * 3_600_000 + minute * 60_000);
       if (time > now) return { date: time, label: `${day === 0 ? 'Hari ini' : 'Besok'}, ${String(hour).padStart(2, '0')}.${String(minute).padStart(2, '0')}` };
@@ -86,10 +102,10 @@ export function dailyActivity(runs, now = new Date(), count = 30) {
     const date = new Date(today - (count - 1 - index) * DAY);
     const key = dateKey(date);
     const dayRuns = (byDay.get(key) || []).sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-    // A failed backup remains visible even if another attempt succeeded that day.
-    const state = dayRuns.some((run) => runState(run) === 'failure') ? 'failure'
-      : dayRuns.some((run) => runState(run) === 'running') ? 'running'
+    // Once a retry succeeds on a given WIB day, the daily target (1x commit) is achieved.
+    const state = dayRuns.some((run) => runState(run) === 'running') ? 'running'
       : dayRuns.some((run) => runState(run) === 'success') ? 'success'
+      : dayRuns.some((run) => runState(run) === 'failure') ? 'failure'
       : dayRuns.length ? runState(dayRuns[0]) : 'waiting';
     return { date, key, state, runs: dayRuns };
   });

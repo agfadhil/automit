@@ -45,8 +45,15 @@ export function runDailyCommit({ env = process.env, cwd = process.cwd(), now = n
       if (error.code !== 'ENOENT') throw new Error('data/activity.json tidak valid; perbaiki file sebelum menjalankan ulang.');
     }
     if (previous?.date === date) {
+      const commitSha = git('rev-parse', 'HEAD');
       console.log(`Aktivitas ${date} sudah tersimpan; tidak membuat commit tambahan.`);
-      return { changed: false, date, commitSha: git('rev-parse', 'HEAD') };
+      if (env.GITHUB_STEP_SUMMARY) {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, `Aktivitas harian **${date}** sudah tercatat sebelumnya (\`${commitSha}\`); melewati auto-commit tambahan.\n`);
+      }
+      if (env.GITHUB_OUTPUT) {
+        appendFileSync(env.GITHUB_OUTPUT, `changed=false\ndate=${date}\ncommit_sha=${commitSha}\n`);
+      }
+      return { changed: false, date, commitSha };
     }
     const activity = {
       schemaVersion: 1,
@@ -66,6 +73,9 @@ export function runDailyCommit({ env = process.env, cwd = process.cwd(), now = n
       console.log(`Aktivitas ${date} berhasil dipush (${commitSha.slice(0, 7)}).`);
       if (env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `Commit harian **${date}** berhasil: \`${commitSha}\`.\n`);
+      }
+      if (env.GITHUB_OUTPUT) {
+        appendFileSync(env.GITHUB_OUTPUT, `changed=true\ndate=${date}\ncommit_sha=${commitSha}\n`);
       }
       return { changed: true, date, commitSha };
     } catch (error) {

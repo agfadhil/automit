@@ -4,16 +4,16 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { collectStatus, createGitHubClient, normalizeRun, sanitizeMessage } from '../scripts/build-status.mjs';
+import { collectStatus, createGitHubClient, DEFAULT_SCHEDULE, normalizeRun, sanitizeMessage } from '../scripts/build-status.mjs';
 import { jakartaDate, runDailyCommit } from '../scripts/daily-commit.mjs';
 
 const repository = { owner: { login: 'fadhil' }, name: 'automit', private: false,
   default_branch: 'main', html_url: 'https://github.com/fadhil/automit' };
 const run = (id, conclusion = 'success', overrides = {}) => ({
   id, run_number: id, status: 'completed', conclusion,
-  run_started_at: `2026-10-${String(id).padStart(2, '0')}T02:17:00Z`,
-  created_at: `2026-10-${String(id).padStart(2, '0')}T02:16:58Z`,
-  updated_at: `2026-10-${String(id).padStart(2, '0')}T02:17:25Z`,
+  run_started_at: `2026-10-${String(id).padStart(2, '0')}T01:00:00Z`,
+  created_at: `2026-10-${String(id).padStart(2, '0')}T00:59:58Z`,
+  updated_at: `2026-10-${String(id).padStart(2, '0')}T01:00:25Z`,
   html_url: `https://github.com/fadhil/automit/actions/runs/${id}`, event: 'schedule', ...overrides,
 });
 
@@ -39,7 +39,12 @@ test('initial repository has no fake success or error', async () => {
   assert.equal(snapshot.lastSuccess, null);
   assert.equal(snapshot.error, null);
   assert.equal(snapshot.generatedAt, '2026-10-20T03:00:00.000Z');
-  assert.deepEqual(snapshot.schedule, { timezone: 'Asia/Jakarta', hours: [9, 17], minute: 17 });
+  assert.deepEqual(snapshot.schedule, DEFAULT_SCHEDULE);
+  assert.deepEqual(snapshot.schedule, {
+    timezone: 'Asia/Jakarta',
+    hours: [8, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+    minute: 0,
+  });
   assert.equal(calls.length, 2);
 });
 
@@ -53,6 +58,33 @@ test('maps actual pushed SHA rather than pre-run workflow head SHA', async () =>
   assert.equal(snapshot.runs[1].commitSha, null);
   assert.equal(snapshot.lastSuccess.id, 20);
   assert.equal(snapshot.latestRun.durationSeconds, 25);
+});
+
+test('filters out redundant same-day no-op schedule checks after daily commit succeeds', async () => {
+  const failedAt8 = run(20, 'failure', {
+    run_started_at: '2026-10-20T01:00:00Z',
+    updated_at: '2026-10-20T01:00:15Z',
+  });
+  const succeededAt15 = run(21, 'success', {
+    run_started_at: '2026-10-20T08:00:00Z',
+    updated_at: '2026-10-20T08:00:20Z',
+  });
+  const noopAt16 = run(22, 'success', {
+    run_started_at: '2026-10-20T09:00:00Z',
+    updated_at: '2026-10-20T09:00:05Z',
+  });
+  const { get } = mockApi({
+    runs: [noopAt16, succeededAt15, failedAt8],
+    commits: [
+      { sha: 'retry-pushed-sha', commit: { message: 'chore: daily activity 2026-10-20\n\nAutomit-Run: 21\nhttps://github.com/fadhil/automit/actions/runs/21' } },
+    ],
+    jobs: [{ name: 'Commit harian', conclusion: 'failure', steps: [{ name: 'Push', conclusion: 'failure' }] }],
+  });
+  const snapshot = await collectStatus({ repository: 'fadhil/automit', get });
+  assert.deepEqual(snapshot.runs.map((item) => item.id), [21, 20]);
+  assert.equal(snapshot.latestRun.id, 21);
+  assert.equal(snapshot.lastSuccess.id, 21);
+  assert.equal(snapshot.lastSuccess.commitSha, 'retry-pushed-sha');
 });
 
 test('failed push remains visible while preserving last successful execution', async () => {
@@ -185,18 +217,18 @@ test('daily commit is idempotent and uses the human actor email', () => {
     git(['push', 'origin', 'main'], clone);
     const env = { GITHUB_ACTIONS: 'true', DEFAULT_BRANCH: 'main', GITHUB_REPOSITORY: 'fadhil/automit',
       GITHUB_RUN_ID: '123', AUTOMIT_ACTOR: 'fadhil', AUTOMIT_ACTOR_ID: '456', GITHUB_SERVER_URL: 'https://github.com' };
-    const first = runDailyCommit({ env, cwd: clone, now: new Date('2026-10-20T02:17:00Z') });
+    const first = runDailyCommit({ env, cwd: clone, now: new Date('2026-10-20T01:00:00Z') });
     assert.equal(first.changed, true);
     assert.equal(git(['log', '-1', '--format=%ae'], clone), '456+fadhil@users.noreply.github.com');
     const saved = JSON.parse(readFileSync(join(clone, 'data/activity.json'), 'utf8'));
     assert.equal(saved.date, '2026-10-20');
     assert.equal(saved.runId, 123);
-    assert.equal(saved.recordedAt, '2026-10-20T02:17:00.000Z');
-    const second = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '124' }, cwd: clone, now: new Date('2026-10-20T10:17:00Z') });
+    assert.equal(saved.recordedAt, '2026-10-20T01:00:00.000Z');
+    const second = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '124' }, cwd: clone, now: new Date('2026-10-20T08:00:00Z') });
     assert.equal(second.changed, false);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '2');
     assert.equal(second.commitSha, first.commitSha);
-    const third = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '125' }, cwd: clone, now: new Date('2026-10-21T02:17:00Z') });
+    const third = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '125' }, cwd: clone, now: new Date('2026-10-21T01:00:00Z') });
     assert.equal(third.changed, true);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '3');
   } finally {
@@ -228,7 +260,7 @@ test('rejected push reports failure without rewriting remote history', () => {
     writeFileSync(hook, '#!/bin/sh\necho "Push rejected by branch rules" >&2\nexit 1\n');
     chmodSync(hook, 0o755);
     assert.throws(() => runDailyCommit({
-      cwd: clone, now: new Date('2026-10-20T02:17:00Z'),
+      cwd: clone, now: new Date('2026-10-20T01:00:00Z'),
       env: { GITHUB_ACTIONS: 'true', DEFAULT_BRANCH: 'main', GITHUB_REPOSITORY: 'fadhil/automit',
         GITHUB_RUN_ID: '123', AUTOMIT_ACTOR: 'fadhil', AUTOMIT_ACTOR_ID: '456' },
     }), /Push rejected by branch rules/);

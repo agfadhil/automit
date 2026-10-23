@@ -1,4 +1,4 @@
-import { dailyActivity, formatDate, formatDuration, formatRunDate, formatTime, nextSchedule, relativeTime, runState, safeURL, statusCopy, validateSnapshot } from './status.js';
+import { dailyActivity, dateKey, formatDate, formatDuration, formatRunDate, formatTime, hasSucceededOnDate, nextSchedule, relativeTime, runState, safeURL, statusCopy, validateSnapshot } from './status.js';
 
 const $ = (id) => document.getElementById(id);
 const demoMode = new URLSearchParams(location.search).get('demo');
@@ -115,7 +115,8 @@ function render(snapshot, now = new Date()) {
   const successAt = snapshot.lastSuccess?.completedAt || snapshot.lastSuccess?.startedAt;
   $('last-date').textContent = formatDate(successAt);
   $('last-time').textContent = successAt ? formatTime(successAt) : 'Menunggu eksekusi pertama';
-  const next = nextSchedule(now, snapshot.schedule);
+  const succeededToday = hasSucceededOnDate(snapshot.runs, snapshot.lastSuccess, dateKey(now));
+  const next = nextSchedule(now, snapshot.schedule, { succeededToday });
   $('next-date').textContent = next?.label || '—';
   $('duration').textContent = formatDuration(snapshot.latestRun?.durationSeconds);
   $('run-number').textContent = snapshot.latestRun ? `Run #${snapshot.latestRun.number}` : 'Belum ada eksekusi';
