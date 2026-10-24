@@ -7,7 +7,7 @@ export const API_VERSION = '2026-03-10';
 export const FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'action_required', 'startup_failure', 'stale']);
 export const DEFAULT_SCHEDULE = {
   timezone: 'Asia/Jakarta',
-  hours: [8, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+  hours: [7, 10, 13, 16, 19],
   minute: 0,
 };
 

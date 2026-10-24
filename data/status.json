@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "repository": null,
   "workflow": { "file": "daily-commit.yml", "name": "Daily Auto Commit", "url": null },
-  "schedule": { "timezone": "Asia/Jakarta", "hours": [8, 15, 16, 17, 18, 19, 20, 21, 22, 23], "minute": 0 },
+  "schedule": { "timezone": "Asia/Jakarta", "hours": [7, 10, 13, 16, 19], "minute": 0 },
   "generatedAt": null,
   "lastSuccess": null,
   "latestRun": null,

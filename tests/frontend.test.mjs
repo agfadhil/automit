@@ -12,15 +12,15 @@ import {
   validateSnapshot,
 } from '../assets/status.js';
 
-const now = new Date('2026-10-20T09:00:00Z');
+const now = new Date('2026-10-20T07:00:00Z');
 const schedule = DEFAULT_SCHEDULE;
 const makeRun = (overrides = {}) => ({
   id: 20,
   number: 20,
   status: 'completed',
   conclusion: 'success',
-  startedAt: '2026-10-20T01:00:00Z',
-  completedAt: '2026-10-20T01:00:25Z',
+  startedAt: '2026-10-20T00:00:00Z',
+  completedAt: '2026-10-20T00:00:25Z',
   durationSeconds: 25,
   ...overrides,
 });
@@ -42,15 +42,16 @@ test('date keys change at WIB midnight and reject invalid timestamps', () => {
   assert.equal(dateKey(null), null);
 });
 
-test('next schedule follows 08.00 primary, 15.00 retry, and hourly retries until success', () => {
+test('next schedule advances every 3 hours at 07.00, 10.00, 13.00, 16.00, and 19.00 WIB boundaries', () => {
   const cases = [
-    ['2026-10-20T00:59:59.999Z', '2026-10-20T01:00:00.000Z', 'Hari ini, 08.00'],
-    ['2026-10-20T01:00:00.000Z', '2026-10-20T08:00:00.000Z', 'Hari ini, 15.00'],
-    ['2026-10-20T07:59:59.999Z', '2026-10-20T08:00:00.000Z', 'Hari ini, 15.00'],
-    ['2026-10-20T08:00:00.000Z', '2026-10-20T09:00:00.000Z', 'Hari ini, 16.00'],
-    ['2026-10-20T09:00:00.000Z', '2026-10-20T10:00:00.000Z', 'Hari ini, 17.00'],
-    ['2026-10-20T15:59:59.999Z', '2026-10-20T16:00:00.000Z', 'Hari ini, 23.00'],
-    ['2026-10-20T16:00:00.000Z', '2026-10-21T01:00:00.000Z', 'Besok, 08.00'],
+    ['2026-10-19T23:59:59.999Z', '2026-10-20T00:00:00.000Z', 'Hari ini, 07.00'],
+    ['2026-10-20T00:00:00.000Z', '2026-10-20T03:00:00.000Z', 'Hari ini, 10.00'],
+    ['2026-10-20T02:59:59.999Z', '2026-10-20T03:00:00.000Z', 'Hari ini, 10.00'],
+    ['2026-10-20T03:00:00.000Z', '2026-10-20T06:00:00.000Z', 'Hari ini, 13.00'],
+    ['2026-10-20T06:00:00.000Z', '2026-10-20T09:00:00.000Z', 'Hari ini, 16.00'],
+    ['2026-10-20T09:00:00.000Z', '2026-10-20T12:00:00.000Z', 'Hari ini, 19.00'],
+    ['2026-10-20T11:59:59.999Z', '2026-10-20T12:00:00.000Z', 'Hari ini, 19.00'],
+    ['2026-10-20T12:00:00.000Z', '2026-10-21T00:00:00.000Z', 'Besok, 07.00'],
   ];
   for (const [timestamp, expectedDate, expectedLabel] of cases) {
     const next = nextSchedule(new Date(timestamp), schedule);
@@ -59,24 +60,24 @@ test('next schedule follows 08.00 primary, 15.00 retry, and hourly retries until
   }
 });
 
-test('next schedule jumps to tomorrow 08.00 once today has already succeeded', () => {
-  const afterMorningSuccess = nextSchedule(new Date('2026-10-20T01:05:00.000Z'), schedule, { succeededToday: true });
-  assert.equal(afterMorningSuccess.date.toISOString(), '2026-10-21T01:00:00.000Z');
-  assert.equal(afterMorningSuccess.label, 'Besok, 08.00');
+test('next schedule jumps to tomorrow 07.00 once today has already succeeded', () => {
+  const afterMorningSuccess = nextSchedule(new Date('2026-10-20T00:05:00.000Z'), schedule, { succeededToday: true });
+  assert.equal(afterMorningSuccess.date.toISOString(), '2026-10-21T00:00:00.000Z');
+  assert.equal(afterMorningSuccess.label, 'Besok, 07.00');
 
-  const todaySuccessRun = makeRun({ startedAt: '2026-10-20T08:00:00Z', completedAt: '2026-10-20T08:00:20Z' });
+  const todaySuccessRun = makeRun({ startedAt: '2026-10-20T03:00:00Z', completedAt: '2026-10-20T03:00:20Z' });
   assert.equal(hasSucceededOnDate([todaySuccessRun], todaySuccessRun, '2026-10-20'), true);
   assert.equal(hasSucceededOnDate([], null, '2026-10-20'), false);
 });
 
 test('next schedule uses the Jakarta calendar across midnight and year rollover', () => {
   const atMidnight = nextSchedule(new Date('2026-10-19T17:00:00Z'), schedule);
-  assert.equal(atMidnight.date.toISOString(), '2026-10-20T01:00:00.000Z');
-  assert.equal(atMidnight.label, 'Hari ini, 08.00');
+  assert.equal(atMidnight.date.toISOString(), '2026-10-20T00:00:00.000Z');
+  assert.equal(atMidnight.label, 'Hari ini, 07.00');
 
-  const nextYear = nextSchedule(new Date('2026-12-31T16:00:00Z'), schedule);
-  assert.equal(nextYear.date.toISOString(), '2027-01-01T01:00:00.000Z');
-  assert.equal(nextYear.label, 'Besok, 08.00');
+  const nextYear = nextSchedule(new Date('2026-12-31T12:00:00Z'), schedule);
+  assert.equal(nextYear.date.toISOString(), '2027-01-01T00:00:00.000Z');
+  assert.equal(nextYear.label, 'Besok, 07.00');
 });
 
 test('a failed latest run preserves the actual previous success time', () => {
@@ -84,14 +85,14 @@ test('a failed latest run preserves the actual previous success time', () => {
   const failed = makeRun({
     id: 21,
     conclusion: 'failure',
-    startedAt: '2026-10-20T08:00:00Z',
-    completedAt: '2026-10-20T08:00:30Z',
+    startedAt: '2026-10-20T03:00:00Z',
+    completedAt: '2026-10-20T03:00:30Z',
   });
   const snapshot = makeSnapshot({ latestRun: failed, lastSuccess, runs: [failed, lastSuccess] });
   const copy = statusCopy(snapshot, now);
   assert.equal(copy.state, 'failure');
   assert.equal(copy.title, 'Ada yang perlu diperiksa.');
-  assert.equal(copy.caption, 'Terakhir berhasil 7 jam yang lalu');
+  assert.equal(copy.caption, 'Terakhir berhasil 6 jam yang lalu');
   assert.equal(snapshot.lastSuccess, lastSuccess);
 });
 
@@ -118,7 +119,7 @@ test('cancelled and skipped executions retain distinct, accurate labels', () => 
   assert.equal(runState(cancelled), 'cancelled');
   assert.equal(cancelledCopy.state, 'cancelled');
   assert.equal(cancelledCopy.title, 'Eksekusi dibatalkan.');
-  assert.equal(cancelledCopy.caption, 'Terakhir berhasil 7 jam yang lalu');
+  assert.equal(cancelledCopy.caption, 'Terakhir berhasil 6 jam yang lalu');
 
   for (const conclusion of ['skipped', 'neutral']) {
     const skipped = makeRun({ conclusion });
@@ -131,10 +132,10 @@ test('cancelled and skipped executions retain distinct, accurate labels', () => 
 });
 
 test('daily activity marks day as success once a retry succeeds while preserving run history', () => {
-  const failedAt8 = makeRun({ id: 19, conclusion: 'failure', startedAt: '2026-10-20T01:00:00Z' });
-  const succeededAt15 = makeRun({ id: 20, conclusion: 'success', startedAt: '2026-10-20T08:00:00Z' });
-  const failedYesterday = makeRun({ id: 18, conclusion: 'failure', startedAt: '2026-10-19T01:00:00Z' });
-  const days = dailyActivity([failedAt8, succeededAt15, failedYesterday], now, 3);
+  const failedAt7 = makeRun({ id: 19, conclusion: 'failure', startedAt: '2026-10-20T00:00:00Z' });
+  const succeededAt10 = makeRun({ id: 20, conclusion: 'success', startedAt: '2026-10-20T03:00:00Z' });
+  const failedYesterday = makeRun({ id: 18, conclusion: 'failure', startedAt: '2026-10-19T00:00:00Z' });
+  const days = dailyActivity([failedAt7, succeededAt10, failedYesterday], now, 3);
 
   assert.deepEqual(days.map((day) => [day.key, day.state]), [
     ['2026-10-18', 'waiting'],

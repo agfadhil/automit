@@ -2,8 +2,8 @@ name: Daily Auto Commit
 
 on:
   schedule:
-    - cron: '0 8,15-23 * * *'
-      timezone: Asia/Jakarta
+    # 07:00, 10:00, 13:00, 16:00, dan 19:00 WIB (Asia/Jakarta, UTC+7) = 00:00, 03:00, 06:00, 09:00, dan 12:00 UTC
+    - cron: '0 0,3,6,9,12 * * *'
   push:
     paths:
       - .github/workflows/daily-commit.yml

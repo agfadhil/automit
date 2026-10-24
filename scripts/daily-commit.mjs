@@ -9,6 +9,14 @@ export function jakartaDate(date = new Date()) {
   }).format(date);
 }
 
+export function jakartaHour(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false,
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  return hour === 24 ? 0 : hour;
+}
+
 export function runDailyCommit({ env = process.env, cwd = process.cwd(), now = new Date() } = {}) {
   if (env.GITHUB_ACTIONS !== 'true') {
     throw new Error('Jalankan melalui GitHub Actions; script ini memakai checkout runner sementara.');
@@ -21,6 +29,13 @@ export function runDailyCommit({ env = process.env, cwd = process.cwd(), now = n
     cwd, encoding: 'utf8', env: { ...process.env, ...env, TZ: 'Asia/Jakarta' }, stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
   if (git('status', '--porcelain')) throw new Error('Checkout runner harus bersih sebelum membuat commit.');
+  const date = jakartaDate(now);
+  const hour = jakartaHour(now);
+  if (env.GITHUB_EVENT_NAME === 'schedule' && (hour < 7 || hour >= 21)) {
+    const commitSha = git('rev-parse', 'HEAD');
+    console.log(`Di luar jam operasional terjadwal (07.00-19.00 WIB, saat ini jam ${String(hour).padStart(2, '0')}.00 WIB); melewati auto-commit.`);
+    return { changed: false, date, commitSha };
+  }
   const author = env.COMMIT_AUTHOR_NAME || env.AUTOMIT_ACTOR;
   const email = env.COMMIT_AUTHOR_EMAIL || `${env.AUTOMIT_ACTOR_ID}+${env.AUTOMIT_ACTOR}@users.noreply.github.com`;
   if (!author || (!env.COMMIT_AUTHOR_EMAIL && (!env.AUTOMIT_ACTOR_ID || !env.AUTOMIT_ACTOR))) {
@@ -28,7 +43,6 @@ export function runDailyCommit({ env = process.env, cwd = process.cwd(), now = n
   }
   git('config', 'user.name', author);
   git('config', 'user.email', email);
-  const date = jakartaDate(now);
   const server = env.GITHUB_SERVER_URL || 'https://github.com';
   const runUrl = `${server}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
   const activityFile = resolve(cwd, 'data/activity.json');

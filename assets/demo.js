@@ -14,7 +14,7 @@ export function demoSnapshot(mode = 'success', now = new Date()) {
   return {
     schemaVersion: 1, repository: { owner: 'contoh', name: 'automit', defaultBranch: 'main', url: 'https://github.com' },
     workflow: { file: 'daily-commit.yml', name: 'Daily Auto Commit', url: 'https://github.com' },
-    schedule: { timezone: 'Asia/Jakarta', hours: [8, 15, 16, 17, 18, 19, 20, 21, 22, 23], minute: 0 }, generatedAt: now.toISOString(),
+    schedule: { timezone: 'Asia/Jakarta', hours: [7, 10, 13, 16, 19], minute: 0 }, generatedAt: now.toISOString(),
     lastSuccess: runs.find((run) => run.conclusion === 'success') || null, latestRun: runs[0] || null, runs,
     error: failedRun ? { runId: failedRun.id, message: 'Push ke repository ditolak. Token workflow belum memiliki izin untuk mengubah default branch.', step: 'Commit dan push aktivitas harian', job: 'Commit harian', details: ['remote: Permission to contoh/automit.git denied to github-actions[bot].', 'fatal: unable to access repository: The requested URL returned error: 403', 'Periksa permissions.contents: write dan aturan proteksi branch di repository.'], url: 'https://github.com' } : null,
   };
