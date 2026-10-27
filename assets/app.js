@@ -70,14 +70,15 @@ function selectDay(day, button) {
   const successes = day.runs.filter((run) => runState(run) === 'success').length;
   const failed = day.runs.filter((run) => runState(run) === 'failure').length;
   const count = day.runs.length;
-  $('activity-selected').textContent = `${formatDate(day.date)} · ${count ? `${count} eksekusi${successes ? `, ${successes} berhasil` : ''}${failed ? `, ${failed} gagal` : ''}` : 'Belum ada eksekusi yang tercatat'}`;
+  const empty = day.state === 'failure' ? 'Tidak ada commit yang berhasil' : 'Belum ada eksekusi yang tercatat';
+  $('activity-selected').textContent = `${formatDate(day.date)} · ${count ? `${count} eksekusi${successes ? `, ${successes} berhasil` : ''}${failed ? `, ${failed} gagal` : ''}` : empty}`;
   $('activity-selected').hidden = false;
 }
 
 function renderActivity(snapshot, now) {
   const days = dailyActivity(snapshot.runs, now);
   $('activity-bars').replaceChildren();
-  const labels = { success: 'Berhasil', failure: 'Ada eksekusi gagal', waiting: 'Belum ada eksekusi', running: 'Sedang berjalan', cancelled: 'Dibatalkan' };
+  const labels = { success: 'Berhasil', failure: 'Tidak berhasil commit', waiting: 'Belum ada eksekusi', running: 'Sedang berjalan', cancelled: 'Dibatalkan' };
   for (const day of days) {
     const button = element('button', 'activity-bar');
     button.type = 'button'; button.dataset.state = day.state;

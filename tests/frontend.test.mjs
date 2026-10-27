@@ -146,6 +146,20 @@ test('daily activity marks day as success once a retry succeeds while preserving
   assert.deepEqual(days.at(-1).runs.map((run) => run.id), [20, 19]);
 });
 
+test('a tracked day whose 22.00 WIB window closed without success is a failure, not waiting', () => {
+  const succeeded = makeRun({ id: 17, startedAt: '2026-10-17T00:07:00Z' });
+  const cancelled = makeRun({ id: 18, conclusion: 'cancelled', startedAt: '2026-10-18T00:07:00Z' });
+  const evening = new Date('2026-10-20T14:59:59Z');
+  assert.deepEqual(dailyActivity([cancelled, succeeded], evening, 5).map((day) => [day.key, day.state]), [
+    ['2026-10-16', 'waiting'],
+    ['2026-10-17', 'success'],
+    ['2026-10-18', 'failure'],
+    ['2026-10-19', 'failure'],
+    ['2026-10-20', 'waiting'],
+  ]);
+  assert.equal(dailyActivity([succeeded], new Date('2026-10-20T15:00:00Z'), 1)[0].state, 'failure');
+});
+
 test('daily activity groups runs at the WIB date boundary rather than the UTC date', () => {
   const previousDay = makeRun({ id: 18, startedAt: '2026-10-19T16:59:59Z' });
   const currentDay = makeRun({ id: 19, conclusion: 'failure', startedAt: '2026-10-19T17:00:00Z' });
