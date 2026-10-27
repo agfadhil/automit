@@ -146,9 +146,25 @@ export function safeURL(value) {
   } catch { return null; }
 }
 
+// The most recent WIB day whose attempt window closed without a commit, unless today
+// has already succeeded. Covers days where GitHub delayed or dropped every attempt.
+export function missedDay(runs = [], now = new Date()) {
+  const [yesterday, today] = dailyActivity(Array.isArray(runs) ? runs : [], now, 2);
+  if (today.state === 'success' || today.state === 'running') return null;
+  if (today.state === 'failure' && now >= Date.parse(`${today.key}T${String(ATTEMPT_WINDOW_END_HOUR).padStart(2, '0')}:00:00+07:00`)) {
+    return { key: today.key, label: 'hari ini' };
+  }
+  return yesterday.state === 'failure' ? { key: yesterday.key, label: 'kemarin' } : null;
+}
+
 export function statusCopy(snapshot, now = new Date()) {
   const state = runState(snapshot.latestRun);
   const last = snapshot.lastSuccess?.completedAt || snapshot.lastSuccess?.startedAt;
+  const missed = state === 'running' || state === 'failure' ? null : missedDay(snapshot.runs, now);
+  if (missed) {
+    const retry = missed.label === 'hari ini' ? 'Percobaan berikutnya dimulai besok pagi sesuai jadwal.' : 'Automasi mencoba lagi hari ini sesuai jadwal.';
+    return { state: 'failure', title: 'Commit harian terlewat.', description: `Tidak ada commit yang berhasil ${missed.label} hingga 22.00 WIB. ${retry}`, caption: last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Belum ada eksekusi yang berhasil' };
+  }
   const captions = {
     success: ['Semua berjalan lancar.', 'Commit harianmu sudah tersimpan. Sampai jumpa di jadwal berikutnya.', `Terakhir berhasil ${relativeTime(last, now)}`],
     failure: ['Ada yang perlu diperiksa.', 'Eksekusi terakhir belum berhasil. Detail penyebabnya ada di bawah.', last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Belum ada eksekusi yang berhasil'],

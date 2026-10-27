@@ -113,6 +113,27 @@ test('pending and initial snapshots never claim that a commit succeeded', () => 
   assert.equal(initial.caption, 'Belum ada eksekusi yang tercatat');
 });
 
+test('status card reports a missed day instead of the previous day success', () => {
+  const daySuccess = makeRun({ id: 19, startedAt: '2026-10-19T00:07:00Z', completedAt: '2026-10-19T00:07:20Z' });
+  const snapshot = makeSnapshot({ latestRun: daySuccess, lastSuccess: daySuccess, runs: [daySuccess] });
+
+  // 2026-10-20 before 22.00 WIB: today still has attempts left.
+  assert.equal(statusCopy(snapshot, new Date('2026-10-20T14:59:59Z')).state, 'success');
+
+  const tonight = statusCopy(snapshot, new Date('2026-10-20T15:00:00Z'));
+  assert.equal(tonight.state, 'failure');
+  assert.equal(tonight.title, 'Commit harian terlewat.');
+  assert.match(tonight.description, /hari ini hingga 22\.00 WIB/);
+
+  const nextMorning = statusCopy(snapshot, new Date('2026-10-21T01:00:00Z'));
+  assert.equal(nextMorning.state, 'failure');
+  assert.match(nextMorning.description, /kemarin hingga 22\.00 WIB/);
+
+  const recovered = makeRun({ id: 21, startedAt: '2026-10-21T02:07:00Z', completedAt: '2026-10-21T02:07:20Z' });
+  const afterRecovery = makeSnapshot({ latestRun: recovered, lastSuccess: recovered, runs: [recovered, daySuccess] });
+  assert.equal(statusCopy(afterRecovery, new Date('2026-10-21T03:00:00Z')).state, 'success');
+});
+
 test('cancelled and skipped executions retain distinct, accurate labels', () => {
   const lastSuccess = makeRun();
   const cancelled = makeRun({ conclusion: 'cancelled' });
