@@ -20,6 +20,25 @@ function wibDateKey(value) {
   }).format(date);
 }
 
+function wibHour(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const hour = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false,
+  }).formatToParts(date).find((part) => part.type === 'hour')?.value);
+  return hour === 24 ? 0 : hour;
+}
+
+// GitHub can start a scheduled run hours late. daily-commit.mjs exits 0 without
+// committing when that lands outside 07:00-21:00 WIB, so such a run is not an
+// attempt and must never count as the day's success.
+function isOutOfWindowSkip(run, commitsByRun) {
+  if (run.event !== 'schedule' || run.status !== 'completed' || run.conclusion !== 'success') return false;
+  if (commitsByRun.has(Number(run.id))) return false;
+  const hour = wibHour(run.run_started_at || run.created_at);
+  return hour !== null && (hour < 7 || hour >= 21);
+}
+
 function filterRedundantDailyRuns(rawRuns, commitsByRun) {
   // Sort oldest-first to find the first successful run per WIB day.
   // Subsequent scheduled runs on the same WIB day that exit 0 without creating a commit
@@ -28,6 +47,10 @@ function filterRedundantDailyRuns(rawRuns, commitsByRun) {
   const succeededDays = new Set();
   const redundantIds = new Set();
   for (const run of chronological) {
+    if (isOutOfWindowSkip(run, commitsByRun)) {
+      redundantIds.add(Number(run.id));
+      continue;
+    }
     const day = wibDateKey(run.run_started_at || run.created_at);
     if (!day) continue;
     if (run.status === 'completed' && run.conclusion === 'success') {
