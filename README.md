@@ -10,7 +10,7 @@ A status page for automatic daily commits. Built with plain HTML, CSS, and JavaS
 
 Pushing the workflow configuration for the first time will trigger an automatic commit. After that, the schedule runs every 3 hours (`Asia/Jakarta`, UTC+7): starting at **07:07 WIB** (`00:07 UTC`), with retry checks at **10:07 WIB** (`03:07 UTC`), **13:07 WIB** (`06:07 UTC`), **16:07 WIB** (`09:07 UTC`), and a final check at **19:07 WIB** (`12:07 UTC`). Once a commit succeeds for the day, any remaining scheduled checks on the same WIB day finish immediately without creating additional commits.
 
-GitHub often starts scheduled runs late, so the cron uses minute `:07` to avoid the busy top of the hour. A delayed run still attempts the commit as long as it starts between **07:00 and 22:00 WIB**; a scheduled run starting outside that window is skipped and is left out of the status page, so a day without any in-window attempt shows as having no executions.
+GitHub often starts scheduled runs late, so the cron uses minute `:07` to avoid the busy top of the hour. A delayed run still attempts the commit as long as it starts between **07:00 and 22:00 WIB**; a scheduled run starting outside that window is skipped and is left out of the status page. Once 22:00 WIB passes without a successful commit, the status page marks that day as failed, even if GitHub never started an attempt.
 
 The Pages URL will be available under **Settings → Pages** after the **Publish Automation Status** workflow succeeds. If the first publish run happens before Pages is enabled, manually trigger **Publish Automation Status → Run workflow** once after setting the Source above, or wait for the next daily execution. This is a one-time setup step, not a daily requirement.
 

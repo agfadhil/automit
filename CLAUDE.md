@@ -65,7 +65,7 @@ tests/
   - cron in `daily-commit.yml` (`7 0,3,6,9,12 * * *` UTC = 07:07/10:07/13:07/16:07/19:07 WIB)
   - `DEFAULT_SCHEDULE` in `scripts/build-status.mjs` and `assets/status.js`
   - `assets/demo.js`, `data/status.json`, footer text in `index.html`, the README, and tests in both test files
-  - the out-of-window guard in `daily-commit.mjs` (skips when `hour < 7 || hour >= 22`, i.e. the 07:00–22:00 WIB attempt window — later than the last 19:07 slot to leave slack for delayed cron runs), mirrored by `isOutOfWindowSkip()` in `build-status.mjs`, which drops those skipped runs so they never count as a success
+  - the out-of-window guard in `daily-commit.mjs` (skips when `hour < 7 || hour >= 22`, i.e. the 07:00–22:00 WIB attempt window — later than the last 19:07 slot to leave slack for delayed cron runs), mirrored by `isOutOfWindowSkip()` in `build-status.mjs`, which drops those skipped runs so they never count as a success, and by `ATTEMPT_WINDOW_END_HOUR` in `assets/status.js`, after which a tracked day without a success shows as failed
 - The workflow names `Daily Auto Commit` and file `daily-commit.yml` are hard-coded in `publish-status.yml` and `build-status.mjs`.
 - Failure conclusions (`failure`, `timed_out`, `action_required`, `startup_failure`, `stale`) are defined in both `build-status.mjs` and `status.js`.
 - Security posture of `publish-status.yml` is deliberate: read-only token in build, `persist-credentials: false`, only the default branch is checked out, nothing from the triggering run is downloaded or executed. The GitHub client only fetches constructed API paths (a check-run id is extracted from the URL rather than following it). Preserve these.

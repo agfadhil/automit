@@ -4,6 +4,8 @@ export const DEFAULT_SCHEDULE = {
   hours: [7, 10, 13, 16, 19],
   minute: 7,
 };
+// Last WIB hour a scheduled attempt may start (mirrors the guard in daily-commit.mjs).
+export const ATTEMPT_WINDOW_END_HOUR = 22;
 const DAY = 86_400_000;
 const OFFSET = 7 * 60 * 60 * 1000;
 const failures = new Set(['failure', 'timed_out', 'action_required', 'startup_failure', 'stale']);
@@ -92,9 +94,11 @@ export function nextSchedule(now = new Date(), schedule = DEFAULT_SCHEDULE, { su
 export function dailyActivity(runs, now = new Date(), count = 30) {
   const today = Date.parse(`${dateKey(now)}T12:00:00+07:00`);
   const byDay = new Map();
+  let firstKey = null;
   for (const run of runs) {
     const key = dateKey(run.startedAt);
     if (!key) continue;
+    if (!firstKey || key < firstKey) firstKey = key;
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key).push(run);
   }
@@ -103,9 +107,11 @@ export function dailyActivity(runs, now = new Date(), count = 30) {
     const key = dateKey(date);
     const dayRuns = (byDay.get(key) || []).sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
     // Once a retry succeeds on a given WIB day, the daily target (1x commit) is achieved.
+    // A tracked day whose attempt window has closed without a success missed the target.
+    const closed = now >= Date.parse(`${key}T${String(ATTEMPT_WINDOW_END_HOUR).padStart(2, '0')}:00:00+07:00`);
     const state = dayRuns.some((run) => runState(run) === 'running') ? 'running'
       : dayRuns.some((run) => runState(run) === 'success') ? 'success'
-      : dayRuns.some((run) => runState(run) === 'failure') ? 'failure'
+      : dayRuns.some((run) => runState(run) === 'failure') || (closed && firstKey && key >= firstKey) ? 'failure'
       : dayRuns.length ? runState(dayRuns[0]) : 'waiting';
     return { date, key, state, runs: dayRuns };
   });
