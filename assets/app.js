@@ -130,7 +130,8 @@ function render(snapshot, now = new Date()) {
   if (stale) $('data-notice').textContent = `Belum ada pembaruan data sejak ${formatRunDate(generatedAt)}. Status di bawah adalah hasil terakhir yang tercatat; periksa workflow pelapor di GitHub.`;
   renderActivity(snapshot, now);
   renderHistory(snapshot);
-  if (state === 'failure' && snapshot.error) renderError(snapshot.error);
+  // A missed day can show a failure state while the latest run succeeded; only show error details for a failed latest run.
+  if (state === 'failure' && runState(snapshot.latestRun) === 'failure' && snapshot.error) renderError(snapshot.error);
   else if (activeError && snapshot.error && Number(activeError.runId) === Number(snapshot.error.runId)) renderError(snapshot.error);
   else renderError(null);
 }
