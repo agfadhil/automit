@@ -43,7 +43,7 @@ test('initial repository has no fake success or error', async () => {
   assert.deepEqual(snapshot.schedule, {
     timezone: 'Asia/Jakarta',
     hours: [7, 10, 13, 16, 19],
-    minute: 0,
+    minute: 7,
   });
   assert.equal(calls.length, 2);
 });
@@ -237,7 +237,7 @@ test('daily commit is idempotent, skips out-of-window 1 AM WIB schedule runs, an
     const env = { GITHUB_ACTIONS: 'true', DEFAULT_BRANCH: 'main', GITHUB_REPOSITORY: 'fadhil/automit',
       GITHUB_RUN_ID: '123', AUTOMIT_ACTOR: 'fadhil', AUTOMIT_ACTOR_ID: '456', GITHUB_SERVER_URL: 'https://github.com',
       GITHUB_EVENT_NAME: 'schedule' };
-    // 18:00 UTC is 01:00 AM WIB next day -> must be skipped by the 07:00-19:00 WIB window guard
+    // 18:00 UTC is 01:00 AM WIB next day -> must be skipped by the 07:00-22:00 WIB window guard
     const tooEarly = runDailyCommit({ env, cwd: clone, now: new Date('2026-10-19T18:00:00Z') });
     assert.equal(tooEarly.changed, false);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '1');
@@ -259,6 +259,14 @@ test('daily commit is idempotent, skips out-of-window 1 AM WIB schedule runs, an
     const third = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '125' }, cwd: clone, now: new Date('2026-10-21T00:00:00Z') });
     assert.equal(third.changed, true);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '3');
+    // 15:00 UTC is 22:00 WIB -> outside the window, skipped even though today has no commit yet
+    const late = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '126' }, cwd: clone, now: new Date('2026-10-22T15:00:00Z') });
+    assert.equal(late.changed, false);
+    assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '3');
+    // 14:59 UTC is 21:59 WIB -> a delayed 19:07 slot still attempts the commit
+    const delayed = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '127' }, cwd: clone, now: new Date('2026-10-22T14:59:00Z') });
+    assert.equal(delayed.changed, true);
+    assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '4');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

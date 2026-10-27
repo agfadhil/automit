@@ -42,16 +42,17 @@ test('date keys change at WIB midnight and reject invalid timestamps', () => {
   assert.equal(dateKey(null), null);
 });
 
-test('next schedule advances every 3 hours at 07.00, 10.00, 13.00, 16.00, and 19.00 WIB boundaries', () => {
+test('next schedule advances every 3 hours at 07.07, 10.07, 13.07, 16.07, and 19.07 WIB boundaries', () => {
   const cases = [
-    ['2026-10-19T23:59:59.999Z', '2026-10-20T00:00:00.000Z', 'Hari ini, 07.00'],
-    ['2026-10-20T00:00:00.000Z', '2026-10-20T03:00:00.000Z', 'Hari ini, 10.00'],
-    ['2026-10-20T02:59:59.999Z', '2026-10-20T03:00:00.000Z', 'Hari ini, 10.00'],
-    ['2026-10-20T03:00:00.000Z', '2026-10-20T06:00:00.000Z', 'Hari ini, 13.00'],
-    ['2026-10-20T06:00:00.000Z', '2026-10-20T09:00:00.000Z', 'Hari ini, 16.00'],
-    ['2026-10-20T09:00:00.000Z', '2026-10-20T12:00:00.000Z', 'Hari ini, 19.00'],
-    ['2026-10-20T11:59:59.999Z', '2026-10-20T12:00:00.000Z', 'Hari ini, 19.00'],
-    ['2026-10-20T12:00:00.000Z', '2026-10-21T00:00:00.000Z', 'Besok, 07.00'],
+    ['2026-10-19T23:59:59.999Z', '2026-10-20T00:07:00.000Z', 'Hari ini, 07.07'],
+    ['2026-10-20T00:06:59.999Z', '2026-10-20T00:07:00.000Z', 'Hari ini, 07.07'],
+    ['2026-10-20T00:07:00.000Z', '2026-10-20T03:07:00.000Z', 'Hari ini, 10.07'],
+    ['2026-10-20T03:06:59.999Z', '2026-10-20T03:07:00.000Z', 'Hari ini, 10.07'],
+    ['2026-10-20T03:07:00.000Z', '2026-10-20T06:07:00.000Z', 'Hari ini, 13.07'],
+    ['2026-10-20T06:07:00.000Z', '2026-10-20T09:07:00.000Z', 'Hari ini, 16.07'],
+    ['2026-10-20T09:07:00.000Z', '2026-10-20T12:07:00.000Z', 'Hari ini, 19.07'],
+    ['2026-10-20T12:06:59.999Z', '2026-10-20T12:07:00.000Z', 'Hari ini, 19.07'],
+    ['2026-10-20T12:07:00.000Z', '2026-10-21T00:07:00.000Z', 'Besok, 07.07'],
   ];
   for (const [timestamp, expectedDate, expectedLabel] of cases) {
     const next = nextSchedule(new Date(timestamp), schedule);
@@ -60,10 +61,10 @@ test('next schedule advances every 3 hours at 07.00, 10.00, 13.00, 16.00, and 19
   }
 });
 
-test('next schedule jumps to tomorrow 07.00 once today has already succeeded', () => {
+test('next schedule jumps to tomorrow 07.07 once today has already succeeded', () => {
   const afterMorningSuccess = nextSchedule(new Date('2026-10-20T00:05:00.000Z'), schedule, { succeededToday: true });
-  assert.equal(afterMorningSuccess.date.toISOString(), '2026-10-21T00:00:00.000Z');
-  assert.equal(afterMorningSuccess.label, 'Besok, 07.00');
+  assert.equal(afterMorningSuccess.date.toISOString(), '2026-10-21T00:07:00.000Z');
+  assert.equal(afterMorningSuccess.label, 'Besok, 07.07');
 
   const todaySuccessRun = makeRun({ startedAt: '2026-10-20T03:00:00Z', completedAt: '2026-10-20T03:00:20Z' });
   assert.equal(hasSucceededOnDate([todaySuccessRun], todaySuccessRun, '2026-10-20'), true);
@@ -72,12 +73,12 @@ test('next schedule jumps to tomorrow 07.00 once today has already succeeded', (
 
 test('next schedule uses the Jakarta calendar across midnight and year rollover', () => {
   const atMidnight = nextSchedule(new Date('2026-10-19T17:00:00Z'), schedule);
-  assert.equal(atMidnight.date.toISOString(), '2026-10-20T00:00:00.000Z');
-  assert.equal(atMidnight.label, 'Hari ini, 07.00');
+  assert.equal(atMidnight.date.toISOString(), '2026-10-20T00:07:00.000Z');
+  assert.equal(atMidnight.label, 'Hari ini, 07.07');
 
-  const nextYear = nextSchedule(new Date('2026-12-31T12:00:00Z'), schedule);
-  assert.equal(nextYear.date.toISOString(), '2027-01-01T00:00:00.000Z');
-  assert.equal(nextYear.label, 'Besok, 07.00');
+  const nextYear = nextSchedule(new Date('2026-12-31T12:07:00Z'), schedule);
+  assert.equal(nextYear.date.toISOString(), '2027-01-01T00:07:00.000Z');
+  assert.equal(nextYear.label, 'Besok, 07.07');
 });
 
 test('a failed latest run preserves the actual previous success time', () => {

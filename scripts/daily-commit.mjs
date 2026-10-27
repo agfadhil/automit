@@ -31,9 +31,9 @@ export function runDailyCommit({ env = process.env, cwd = process.cwd(), now = n
   if (git('status', '--porcelain')) throw new Error('Checkout runner harus bersih sebelum membuat commit.');
   const date = jakartaDate(now);
   const hour = jakartaHour(now);
-  if (env.GITHUB_EVENT_NAME === 'schedule' && (hour < 7 || hour >= 21)) {
+  if (env.GITHUB_EVENT_NAME === 'schedule' && (hour < 7 || hour >= 22)) {
     const commitSha = git('rev-parse', 'HEAD');
-    console.log(`Di luar jam operasional terjadwal (07.00-19.00 WIB, saat ini jam ${String(hour).padStart(2, '0')}.00 WIB); melewati auto-commit.`);
+    console.log(`Di luar jam operasional terjadwal (07.00-22.00 WIB, saat ini jam ${String(hour).padStart(2, '0')}.00 WIB); melewati auto-commit.`);
     return { changed: false, date, commitSha };
   }
   const author = env.COMMIT_AUTHOR_NAME || env.AUTOMIT_ACTOR;
