@@ -87,6 +87,22 @@ test('filters out redundant same-day no-op schedule checks after daily commit su
   assert.equal(snapshot.lastSuccess.commitSha, 'retry-pushed-sha');
 });
 
+test('late scheduled runs skipped outside the WIB window never count as the day succeeding', async () => {
+  const failedAt7 = run(20, 'failure', { run_started_at: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:15Z' });
+  const failedAt19 = run(21, 'failure', { run_started_at: '2026-10-20T12:00:00Z', updated_at: '2026-10-20T12:00:15Z' });
+  // The 19:00 slot of the previous day delayed to 22:37 WIB, then to 00:30 WIB the next day.
+  const skippedLate = run(22, 'success', { run_started_at: '2026-10-20T15:37:00Z', updated_at: '2026-10-20T15:37:09Z' });
+  const skippedAfterMidnight = run(23, 'success', { run_started_at: '2026-10-20T17:30:00Z', updated_at: '2026-10-20T17:30:09Z' });
+  const { get } = mockApi({
+    runs: [skippedAfterMidnight, skippedLate, failedAt19, failedAt7],
+    jobs: [{ name: 'Commit harian', conclusion: 'failure', steps: [{ name: 'Push', conclusion: 'failure' }] }],
+  });
+  const snapshot = await collectStatus({ repository: 'fadhil/automit', get });
+  assert.deepEqual(snapshot.runs.map((item) => item.id), [21, 20]);
+  assert.equal(snapshot.latestRun.conclusion, 'failure');
+  assert.equal(snapshot.error.runId, 21);
+});
+
 test('failed push remains visible while preserving last successful execution', async () => {
   const { get } = mockApi({
     runs: [run(20, 'failure'), run(19)],
