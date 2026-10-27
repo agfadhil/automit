@@ -2,7 +2,7 @@ export const TIME_ZONE = 'Asia/Jakarta';
 export const DEFAULT_SCHEDULE = {
   timezone: TIME_ZONE,
   hours: [7, 10, 13, 16, 19],
-  minute: 0,
+  minute: 7,
 };
 const DAY = 86_400_000;
 const OFFSET = 7 * 60 * 60 * 1000;
