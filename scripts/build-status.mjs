@@ -30,13 +30,13 @@ function wibHour(value) {
 }
 
 // GitHub can start a scheduled run hours late. daily-commit.mjs exits 0 without
-// committing when that lands outside 07:00-22:00 WIB, so such a run is not an
-// attempt and must never count as the day's success.
+// committing when the 19:07 slot slips past midnight into 00:00-07:00 WIB, so such
+// a run is not an attempt and must never count as the day's success.
 function isOutOfWindowSkip(run, commitsByRun) {
   if (run.event !== 'schedule' || run.status !== 'completed' || run.conclusion !== 'success') return false;
   if (commitsByRun.has(Number(run.id))) return false;
   const hour = wibHour(run.run_started_at || run.created_at);
-  return hour !== null && (hour < 7 || hour >= 22);
+  return hour !== null && hour < 7;
 }
 
 function filterRedundantDailyRuns(rawRuns, commitsByRun) {

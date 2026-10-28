@@ -90,11 +90,11 @@ test('filters out redundant same-day no-op schedule checks after daily commit su
 test('late scheduled runs skipped outside the WIB window never count as the day succeeding', async () => {
   const failedAt7 = run(20, 'failure', { run_started_at: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:15Z' });
   const failedAt19 = run(21, 'failure', { run_started_at: '2026-10-20T12:00:00Z', updated_at: '2026-10-20T12:00:15Z' });
-  // The 19:00 slot of the previous day delayed to 22:37 WIB, then to 00:30 WIB the next day.
-  const skippedLate = run(22, 'success', { run_started_at: '2026-10-20T15:37:00Z', updated_at: '2026-10-20T15:37:09Z' });
-  const skippedAfterMidnight = run(23, 'success', { run_started_at: '2026-10-20T17:30:00Z', updated_at: '2026-10-20T17:30:09Z' });
+  // The 19:00 slot delayed past midnight to 00:30 and 06:59 WIB the next day.
+  const skippedAfterMidnight = run(22, 'success', { run_started_at: '2026-10-20T17:30:00Z', updated_at: '2026-10-20T17:30:09Z' });
+  const skippedBeforeSeven = run(23, 'success', { run_started_at: '2026-10-20T23:59:00Z', updated_at: '2026-10-20T23:59:09Z' });
   const { get } = mockApi({
-    runs: [skippedAfterMidnight, skippedLate, failedAt19, failedAt7],
+    runs: [skippedBeforeSeven, skippedAfterMidnight, failedAt19, failedAt7],
     jobs: [{ name: 'Commit harian', conclusion: 'failure', steps: [{ name: 'Push', conclusion: 'failure' }] }],
   });
   const snapshot = await collectStatus({ repository: 'fadhil/automit', get });
@@ -237,7 +237,7 @@ test('daily commit is idempotent, skips out-of-window 1 AM WIB schedule runs, an
     const env = { GITHUB_ACTIONS: 'true', DEFAULT_BRANCH: 'main', GITHUB_REPOSITORY: 'fadhil/automit',
       GITHUB_RUN_ID: '123', AUTOMIT_ACTOR: 'fadhil', AUTOMIT_ACTOR_ID: '456', GITHUB_SERVER_URL: 'https://github.com',
       GITHUB_EVENT_NAME: 'schedule' };
-    // 18:00 UTC is 01:00 AM WIB next day -> must be skipped by the 07:00-22:00 WIB window guard
+    // 18:00 UTC is 01:00 AM WIB next day -> must be skipped by the 07:00-24:00 WIB window guard
     const tooEarly = runDailyCommit({ env, cwd: clone, now: new Date('2026-10-19T18:00:00Z') });
     assert.equal(tooEarly.changed, false);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '1');
@@ -259,14 +259,15 @@ test('daily commit is idempotent, skips out-of-window 1 AM WIB schedule runs, an
     const third = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '125' }, cwd: clone, now: new Date('2026-10-21T00:00:00Z') });
     assert.equal(third.changed, true);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '3');
-    // 15:00 UTC is 22:00 WIB -> outside the window, skipped even though today has no commit yet
-    const late = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '126' }, cwd: clone, now: new Date('2026-10-22T15:00:00Z') });
-    assert.equal(late.changed, false);
+    // 23:59 UTC is 06:59 WIB -> before the window, skipped even though the day has no commit yet
+    const early = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '126' }, cwd: clone, now: new Date('2026-10-21T23:59:00Z') });
+    assert.equal(early.changed, false);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '3');
-    // 14:59 UTC is 21:59 WIB -> a delayed 19:07 slot still attempts the commit
-    const delayed = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '127' }, cwd: clone, now: new Date('2026-10-22T14:59:00Z') });
+    // 16:59 UTC is 23:59 WIB -> a delayed 19:07 slot still attempts the commit before midnight
+    const delayed = runDailyCommit({ env: { ...env, GITHUB_RUN_ID: '127' }, cwd: clone, now: new Date('2026-10-22T16:59:00Z') });
     assert.equal(delayed.changed, true);
     assert.equal(git(['rev-list', '--count', 'HEAD'], clone), '4');
+    assert.equal(JSON.parse(readFileSync(join(clone, 'data/activity.json'), 'utf8')).date, '2026-10-22');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

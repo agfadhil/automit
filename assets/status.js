@@ -4,8 +4,6 @@ export const DEFAULT_SCHEDULE = {
   hours: [7, 10, 13, 16, 19],
   minute: 7,
 };
-// Last WIB hour a scheduled attempt may start (mirrors the guard in daily-commit.mjs).
-export const ATTEMPT_WINDOW_END_HOUR = 22;
 const DAY = 86_400_000;
 const OFFSET = 7 * 60 * 60 * 1000;
 const failures = new Set(['failure', 'timed_out', 'action_required', 'startup_failure', 'stale']);
@@ -92,7 +90,8 @@ export function nextSchedule(now = new Date(), schedule = DEFAULT_SCHEDULE, { su
 }
 
 export function dailyActivity(runs, now = new Date(), count = 30) {
-  const today = Date.parse(`${dateKey(now)}T12:00:00+07:00`);
+  const todayKey = dateKey(now);
+  const today = Date.parse(`${todayKey}T12:00:00+07:00`);
   const byDay = new Map();
   let firstKey = null;
   for (const run of runs) {
@@ -107,8 +106,8 @@ export function dailyActivity(runs, now = new Date(), count = 30) {
     const key = dateKey(date);
     const dayRuns = (byDay.get(key) || []).sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
     // Once a retry succeeds on a given WIB day, the daily target (1x commit) is achieved.
-    // A tracked day whose attempt window has closed without a success missed the target.
-    const closed = now >= Date.parse(`${key}T${String(ATTEMPT_WINDOW_END_HOUR).padStart(2, '0')}:00:00+07:00`);
+    // A tracked WIB day that has ended (past 24.00 WIB) without a success missed the target.
+    const closed = key < todayKey;
     const state = dayRuns.some((run) => runState(run) === 'running') ? 'running'
       : dayRuns.some((run) => runState(run) === 'success') ? 'success'
       : dayRuns.some((run) => runState(run) === 'failure') || (closed && firstKey && key >= firstKey) ? 'failure'
@@ -146,15 +145,12 @@ export function safeURL(value) {
   } catch { return null; }
 }
 
-// The most recent WIB day whose attempt window closed without a commit, unless today
-// has already succeeded. Covers days where GitHub delayed or dropped every attempt.
+// Yesterday's WIB date when it ended without a commit and today has not succeeded yet.
+// Covers days where GitHub delayed or dropped every attempt.
 export function missedDay(runs = [], now = new Date()) {
   const [yesterday, today] = dailyActivity(Array.isArray(runs) ? runs : [], now, 2);
   if (today.state === 'success' || today.state === 'running') return null;
-  if (today.state === 'failure' && now >= Date.parse(`${today.key}T${String(ATTEMPT_WINDOW_END_HOUR).padStart(2, '0')}:00:00+07:00`)) {
-    return { key: today.key, label: 'hari ini' };
-  }
-  return yesterday.state === 'failure' ? { key: yesterday.key, label: 'kemarin' } : null;
+  return yesterday.state === 'failure' ? yesterday.key : null;
 }
 
 export function statusCopy(snapshot, now = new Date()) {
@@ -162,8 +158,7 @@ export function statusCopy(snapshot, now = new Date()) {
   const last = snapshot.lastSuccess?.completedAt || snapshot.lastSuccess?.startedAt;
   const missed = state === 'running' || state === 'failure' ? null : missedDay(snapshot.runs, now);
   if (missed) {
-    const retry = missed.label === 'hari ini' ? 'Percobaan berikutnya dimulai besok pagi sesuai jadwal.' : 'Automasi mencoba lagi hari ini sesuai jadwal.';
-    return { state: 'failure', title: 'Commit harian terlewat.', description: `Tidak ada commit yang berhasil ${missed.label} hingga 22.00 WIB. ${retry}`, caption: last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Belum ada eksekusi yang berhasil' };
+    return { state: 'failure', title: 'Commit harian terlewat.', description: `Tidak ada commit yang berhasil kemarin (${formatDate(`${missed}T12:00:00+07:00`)}). Automasi mencoba lagi hari ini sesuai jadwal.`, caption: last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Belum ada eksekusi yang berhasil' };
   }
   const captions = {
     success: ['Semua berjalan lancar.', 'Commit harianmu sudah tersimpan. Sampai jumpa di jadwal berikutnya.', `Terakhir berhasil ${relativeTime(last, now)}`],

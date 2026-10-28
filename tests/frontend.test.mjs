@@ -117,17 +117,14 @@ test('status card reports a missed day instead of the previous day success', () 
   const daySuccess = makeRun({ id: 19, startedAt: '2026-10-19T00:07:00Z', completedAt: '2026-10-19T00:07:20Z' });
   const snapshot = makeSnapshot({ latestRun: daySuccess, lastSuccess: daySuccess, runs: [daySuccess] });
 
-  // 2026-10-20 before 22.00 WIB: today still has attempts left.
-  assert.equal(statusCopy(snapshot, new Date('2026-10-20T14:59:59Z')).state, 'success');
+  // 2026-10-20 until 23.59 WIB: today still has attempts left.
+  assert.equal(statusCopy(snapshot, new Date('2026-10-20T16:59:59Z')).state, 'success');
 
-  const tonight = statusCopy(snapshot, new Date('2026-10-20T15:00:00Z'));
-  assert.equal(tonight.state, 'failure');
-  assert.equal(tonight.title, 'Commit harian terlewat.');
-  assert.match(tonight.description, /hari ini hingga 22\.00 WIB/);
-
-  const nextMorning = statusCopy(snapshot, new Date('2026-10-21T01:00:00Z'));
-  assert.equal(nextMorning.state, 'failure');
-  assert.match(nextMorning.description, /kemarin hingga 22\.00 WIB/);
+  // 2026-10-21 00.00 WIB: 2026-10-20 ended without a commit.
+  const afterMidnight = statusCopy(snapshot, new Date('2026-10-20T17:00:00Z'));
+  assert.equal(afterMidnight.state, 'failure');
+  assert.equal(afterMidnight.title, 'Commit harian terlewat.');
+  assert.match(afterMidnight.description, /kemarin \(20 Okt 2026\)/);
 
   const recovered = makeRun({ id: 21, startedAt: '2026-10-21T02:07:00Z', completedAt: '2026-10-21T02:07:20Z' });
   const afterRecovery = makeSnapshot({ latestRun: recovered, lastSuccess: recovered, runs: [recovered, daySuccess] });
@@ -167,10 +164,10 @@ test('daily activity marks day as success once a retry succeeds while preserving
   assert.deepEqual(days.at(-1).runs.map((run) => run.id), [20, 19]);
 });
 
-test('a tracked day whose 22.00 WIB window closed without success is a failure, not waiting', () => {
+test('a tracked day that ended at 24.00 WIB without success is a failure, not waiting', () => {
   const succeeded = makeRun({ id: 17, startedAt: '2026-10-17T00:07:00Z' });
   const cancelled = makeRun({ id: 18, conclusion: 'cancelled', startedAt: '2026-10-18T00:07:00Z' });
-  const evening = new Date('2026-10-20T14:59:59Z');
+  const evening = new Date('2026-10-20T16:59:59Z');
   assert.deepEqual(dailyActivity([cancelled, succeeded], evening, 5).map((day) => [day.key, day.state]), [
     ['2026-10-16', 'waiting'],
     ['2026-10-17', 'success'],
@@ -178,7 +175,7 @@ test('a tracked day whose 22.00 WIB window closed without success is a failure, 
     ['2026-10-19', 'failure'],
     ['2026-10-20', 'waiting'],
   ]);
-  assert.equal(dailyActivity([succeeded], new Date('2026-10-20T15:00:00Z'), 1)[0].state, 'failure');
+  assert.equal(dailyActivity([succeeded], new Date('2026-10-20T17:00:00Z'), 2)[0].state, 'failure');
 });
 
 test('daily activity groups runs at the WIB date boundary rather than the UTC date', () => {
