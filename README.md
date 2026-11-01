@@ -50,7 +50,7 @@ npm run dev
 
 Open the localhost address shown by the server. A page without a run snapshot will display an "no executions yet" state. Do not store GitHub tokens in browser-side JavaScript.
 
-To preview the design with **demo-labeled sample data**, open `http://127.0.0.1:4173/?demo=success` or `?demo=error`. The `?demo=running` and `?demo=waiting` modes are also available. The normal page does not use sample data. Demo parameters only affect the browser display — they do not trigger or modify any workflows.
+To preview the design with **demo-labeled sample data**, open `http://127.0.0.1:4173/?demo=success` or `?demo=error`. The `?demo=pending` (today not yet successful, yellow), `?demo=running`, and `?demo=waiting` modes are also available. The normal page does not use sample data. Demo parameters only affect the browser display — they do not trigger or modify any workflows.
 
 The **Refresh** button re-fetches the page snapshot; an automatic re-check also runs every 60 seconds while the tab is visible. Click an activity bar to see a summary for that date. History shows the three most recent runs, expandable, with last-failure details and a GitHub log link. Error details can be copied.
 

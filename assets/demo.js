@@ -5,9 +5,10 @@ export function demoSnapshot(mode = 'success', now = new Date()) {
   const latest = now.getTime() - 120_000;
   const runs = Array.from({ length: 30 }, (_, index) => {
     const start = new Date(latest - index * day);
-    const failed = index === 2 || (mode === 'error' && index === 0);
+    const failed = index === 2 || ((mode === 'error' || mode === 'pending') && index === 0);
     return { id: 1000 - index, number: 128 - index, status: 'completed', conclusion: failed ? 'failure' : 'success', startedAt: start.toISOString(), completedAt: new Date(start.getTime() + 12_000).toISOString(), durationSeconds: 12 - index % 3, url: 'https://github.com', event: 'schedule', commitSha: failed ? null : `b7e29${String(index).padStart(2, '0')}db4e6156b4fb808f94c62e8c29e513604`, commitMessage: failed ? null : `chore: daily activity ${start.toISOString().slice(0, 10)}` };
   });
+  if (mode === 'error') runs.splice(1, 1); // no run yesterday: that day ended without a commit
   if (mode === 'waiting') runs.length = 0;
   if (mode === 'running') { runs[0].status = 'in_progress'; runs[0].conclusion = null; runs[0].completedAt = null; runs[0].durationSeconds = null; runs[0].commitSha = null; }
   const failedRun = runs.find((run) => run.conclusion === 'failure');

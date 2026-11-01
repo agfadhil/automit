@@ -2,7 +2,7 @@ import { dailyActivity, dateKey, formatDate, formatDuration, formatRunDate, form
 
 const $ = (id) => document.getElementById(id);
 const demoMode = new URLSearchParams(location.search).get('demo');
-const isDemo = ['success', 'error', 'running', 'waiting'].includes(demoMode);
+const isDemo = ['success', 'error', 'running', 'pending', 'waiting'].includes(demoMode);
 let currentSnapshot = null;
 let showAll = false;
 let selectedDay = null;
@@ -16,6 +16,7 @@ const icons = {
   running: '<path d="M16 6a10 10 0 1 0 10 10"/><path d="m21 6 5 1-1 5"/>',
   cancelled: '<path d="M12 10v12m8-12v12"/>',
   waiting: '<circle cx="16" cy="16" r="10"/><path d="M16 10v6l4 3"/>',
+  pending: '<path d="M10 6h12M10 26h12"/><path d="M12 6v4c0 3 4 4.5 4 6s-4 3-4 6v4M20 6v4c0 3-4 4.5-4 6s4 3 4 6v4"/>',
 };
 
 function symbol(state) { return `<svg viewBox="0 0 32 32" aria-hidden="true">${icons[state] || icons.waiting}</svg>`; }
@@ -78,7 +79,7 @@ function selectDay(day, button) {
 function renderActivity(snapshot, now) {
   const days = dailyActivity(snapshot.runs, now);
   $('activity-bars').replaceChildren();
-  const labels = { success: 'Berhasil', failure: 'Tidak berhasil commit', waiting: 'Belum ada eksekusi', running: 'Sedang berjalan', cancelled: 'Dibatalkan' };
+  const labels = { success: 'Berhasil', failure: 'Tidak berhasil commit', waiting: 'Belum ada eksekusi', pending: 'Hari ini masih diproses', running: 'Sedang berjalan', cancelled: 'Dibatalkan' };
   for (const day of days) {
     const button = element('button', 'activity-bar');
     button.type = 'button'; button.dataset.state = day.state;
@@ -131,7 +132,7 @@ function render(snapshot, now = new Date()) {
   renderActivity(snapshot, now);
   renderHistory(snapshot);
   // A missed day can show a failure state while the latest run succeeded; only show error details for a failed latest run.
-  if (state === 'failure' && runState(snapshot.latestRun) === 'failure' && snapshot.error) renderError(snapshot.error);
+  if (runState(snapshot.latestRun) === 'failure' && snapshot.error) renderError(snapshot.error);
   else if (activeError && snapshot.error && Number(activeError.runId) === Number(snapshot.error.runId)) renderError(snapshot.error);
   else renderError(null);
 }

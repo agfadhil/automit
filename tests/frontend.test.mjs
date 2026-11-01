@@ -102,7 +102,7 @@ test('pending and initial snapshots never claim that a commit succeeded', () => 
     const latestRun = makeRun({ status, conclusion: null, completedAt: null, durationSeconds: null });
     const copy = statusCopy(makeSnapshot({ latestRun, runs: [latestRun] }), now);
     assert.equal(runState(latestRun), 'running');
-    assert.equal(copy.state, 'running');
+    assert.equal(copy.state, 'pending');
     assert.equal(copy.title, 'Automasi sedang berjalan.');
     assert.equal(copy.caption, 'Menyiapkan commit pertamamu');
     assert.doesNotMatch(copy.description, /sudah tersimpan|berhasil/i);
@@ -113,12 +113,53 @@ test('pending and initial snapshots never claim that a commit succeeded', () => 
   assert.equal(initial.caption, 'Belum ada eksekusi yang tercatat');
 });
 
+test('status card is pending (yellow) while today has no success, and turns success once it does', () => {
+  const yesterday = makeRun({ id: 19, startedAt: '2026-10-19T03:07:00Z', completedAt: '2026-10-19T03:07:20Z' });
+  const base = { latestRun: yesterday, lastSuccess: yesterday, runs: [yesterday] };
+
+  // 06.00 WIB: first attempt of the day (07.07) has not started yet.
+  const morning = statusCopy(makeSnapshot(base), new Date('2026-10-19T23:00:00Z'));
+  assert.equal(morning.state, 'pending');
+  assert.equal(morning.title, 'Menunggu commit hari ini.');
+  assert.match(morning.description, /hari ini, 07\.07/);
+
+  // 07.07 attempt failed, retry at 10.07 is still ahead.
+  const failedToday = makeRun({ id: 20, conclusion: 'failure', startedAt: '2026-10-20T00:07:00Z', completedAt: '2026-10-20T00:07:20Z' });
+  const afterFailure = statusCopy(makeSnapshot({ latestRun: failedToday, lastSuccess: yesterday, runs: [failedToday, yesterday] }), new Date('2026-10-20T01:00:00Z'));
+  assert.equal(afterFailure.state, 'pending');
+  assert.equal(afterFailure.title, 'Percobaan hari ini belum berhasil.');
+  assert.match(afterFailure.description, /hari ini, 10\.07/);
+
+  // Retry running now.
+  const running = makeRun({ id: 21, status: 'in_progress', conclusion: null, completedAt: null, durationSeconds: null, startedAt: '2026-10-20T03:07:00Z' });
+  assert.equal(statusCopy(makeSnapshot({ latestRun: running, lastSuccess: yesterday, runs: [running, failedToday, yesterday] }), new Date('2026-10-20T03:08:00Z')).state, 'pending');
+
+  // Retry succeeded: green.
+  const succeeded = makeRun({ id: 21, startedAt: '2026-10-20T03:07:00Z', completedAt: '2026-10-20T03:07:20Z' });
+  const done = statusCopy(makeSnapshot({ latestRun: succeeded, lastSuccess: succeeded, runs: [succeeded, failedToday, yesterday] }), new Date('2026-10-20T03:10:00Z'));
+  assert.equal(done.state, 'success');
+  assert.equal(done.title, 'Semua berjalan lancar.');
+
+  // With no run history at all the card still waits for the first run instead of implying progress.
+  assert.equal(statusCopy(makeSnapshot(), new Date('2026-10-20T01:00:00Z')).state, 'waiting');
+});
+
+test('a failed latest run stays red when an earlier day already ended without a commit', () => {
+  const failedToday = makeRun({ id: 20, conclusion: 'failure', startedAt: '2026-10-20T00:07:00Z', completedAt: '2026-10-20T00:07:20Z' });
+  const twoDaysAgo = makeRun({ id: 18, startedAt: '2026-10-18T03:07:00Z', completedAt: '2026-10-18T03:07:20Z' });
+  const copy = statusCopy(makeSnapshot({ latestRun: failedToday, lastSuccess: twoDaysAgo, runs: [failedToday, twoDaysAgo] }), new Date('2026-10-20T01:00:00Z'));
+  assert.equal(copy.state, 'failure');
+  assert.equal(copy.title, 'Ada yang perlu diperiksa.');
+});
+
 test('status card reports a missed day instead of the previous day success', () => {
   const daySuccess = makeRun({ id: 19, startedAt: '2026-10-19T00:07:00Z', completedAt: '2026-10-19T00:07:20Z' });
   const snapshot = makeSnapshot({ latestRun: daySuccess, lastSuccess: daySuccess, runs: [daySuccess] });
 
-  // 2026-10-20 until 23.59 WIB: today still has attempts left.
-  assert.equal(statusCopy(snapshot, new Date('2026-10-20T16:59:59Z')).state, 'success');
+  // 2026-10-20 until 23.59 WIB: today is still in progress, not a failure.
+  const inProgress = statusCopy(snapshot, new Date('2026-10-20T16:59:59Z'));
+  assert.equal(inProgress.state, 'pending');
+  assert.equal(inProgress.title, 'Menunggu commit hari ini.');
 
   // 2026-10-21 00.00 WIB: 2026-10-20 ended without a commit.
   const afterMidnight = statusCopy(snapshot, new Date('2026-10-20T17:00:00Z'));
@@ -173,9 +214,10 @@ test('a tracked day that ended at 24.00 WIB without success is a failure, not wa
     ['2026-10-17', 'success'],
     ['2026-10-18', 'failure'],
     ['2026-10-19', 'failure'],
-    ['2026-10-20', 'waiting'],
+    ['2026-10-20', 'pending'],
   ]);
-  assert.equal(dailyActivity([succeeded], new Date('2026-10-20T17:00:00Z'), 2)[0].state, 'failure');
+  const midnight = dailyActivity([succeeded], new Date('2026-10-20T17:00:00Z'), 2);
+  assert.deepEqual(midnight.map((day) => day.state), ['failure', 'pending']);
 });
 
 test('daily activity groups runs at the WIB date boundary rather than the UTC date', () => {
@@ -184,7 +226,7 @@ test('daily activity groups runs at the WIB date boundary rather than the UTC da
   const days = dailyActivity([previousDay, currentDay], now, 2);
   assert.deepEqual(days.map((day) => [day.key, day.state, day.runs.map((run) => run.id)]), [
     ['2026-10-19', 'success', [18]],
-    ['2026-10-20', 'failure', [19]],
+    ['2026-10-20', 'pending', [19]],
   ]);
 });
 
