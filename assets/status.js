@@ -108,10 +108,12 @@ export function dailyActivity(runs, now = new Date(), count = 30) {
     // Once a retry succeeds on a given WIB day, the daily target (1x commit) is achieved.
     // A tracked WIB day that has ended (past 24.00 WIB) without a success missed the target.
     const closed = key < todayKey;
-    const state = dayRuns.some((run) => runState(run) === 'running') ? 'running'
+    let state = dayRuns.some((run) => runState(run) === 'running') ? 'running'
       : dayRuns.some((run) => runState(run) === 'success') ? 'success'
       : dayRuns.some((run) => runState(run) === 'failure') || (closed && firstKey && key >= firstKey) ? 'failure'
       : dayRuns.length ? runState(dayRuns[0]) : 'waiting';
+    // Today is still in progress until it succeeds or the WIB day ends, whatever earlier attempts did.
+    if (key === todayKey && state !== 'success' && firstKey && key >= firstKey) state = 'pending';
     return { date, key, state, runs: dayRuns };
   });
 }
@@ -149,7 +151,7 @@ export function safeURL(value) {
 // Covers days where GitHub delayed or dropped every attempt.
 export function missedDay(runs = [], now = new Date()) {
   const [yesterday, today] = dailyActivity(Array.isArray(runs) ? runs : [], now, 2);
-  if (today.state === 'success' || today.state === 'running') return null;
+  if (today.state === 'success') return null;
   return yesterday.state === 'failure' ? yesterday.key : null;
 }
 
@@ -159,6 +161,24 @@ export function statusCopy(snapshot, now = new Date()) {
   const missed = state === 'running' || state === 'failure' ? null : missedDay(snapshot.runs, now);
   if (missed) {
     return { state: 'failure', title: 'Commit harian terlewat.', description: `Tidak ada commit yang berhasil kemarin (${formatDate(`${missed}T12:00:00+07:00`)}). Automasi mencoba lagi hari ini sesuai jadwal.`, caption: last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Belum ada eksekusi yang berhasil' };
+  }
+  // Today has no successful commit yet: the day is still in progress (yellow), not a failure,
+  // unless a missed earlier day keeps a failed latest run red.
+  const todayKey = dateKey(now);
+  if (['running', 'success', 'failure'].includes(state) && !hasSucceededOnDate(snapshot.runs, snapshot.lastSuccess, todayKey)
+    && !(state === 'failure' && missedDay(snapshot.runs, now))) {
+    const next = nextSchedule(now, snapshot.schedule);
+    const nextText = next ? `${next.label.charAt(0).toLowerCase()}${next.label.slice(1)}` : 'sesuai jadwal';
+    if (state === 'running') {
+      return { state: 'pending', title: 'Automasi sedang berjalan.', description: 'Commit harianmu sedang diproses. Status diperbarui setelah eksekusi selesai.', caption: last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Menyiapkan commit pertamamu' };
+    }
+    const failedToday = state === 'failure' && dateKey(snapshot.latestRun.startedAt) === todayKey;
+    return {
+      state: 'pending',
+      title: failedToday ? 'Percobaan hari ini belum berhasil.' : 'Menunggu commit hari ini.',
+      description: failedToday ? `Percobaan berikutnya ${nextText}. Detail kegagalan ada di bawah.` : `Percobaan berikutnya ${nextText}.`,
+      caption: last ? `Terakhir berhasil ${relativeTime(last, now)}` : 'Belum ada eksekusi yang berhasil',
+    };
   }
   const captions = {
     success: ['Semua berjalan lancar.', 'Commit harianmu sudah tersimpan. Sampai jumpa di jadwal berikutnya.', `Terakhir berhasil ${relativeTime(last, now)}`],

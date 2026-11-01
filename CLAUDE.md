@@ -19,7 +19,7 @@ npm run check    # node --check on the three browser modules
 node --test tests/automation.test.mjs   # just the script tests
 ```
 
-Demo UI with sample data: `?demo=success`, `?demo=error`, `?demo=running`, `?demo=waiting`.
+Demo UI with sample data: `?demo=success`, `?demo=error`, `?demo=pending`, `?demo=running`, `?demo=waiting`.
 
 ## Layout
 
@@ -69,6 +69,7 @@ tests/
 - The workflow names `Daily Auto Commit` and file `daily-commit.yml` are hard-coded in `publish-status.yml` and `build-status.mjs`.
 - Failure conclusions (`failure`, `timed_out`, `action_required`, `startup_failure`, `stale`) are defined in both `build-status.mjs` and `status.js`.
 - Security posture of `publish-status.yml` is deliberate: read-only token in build, `persist-credentials: false`, only the default branch is checked out, nothing from the triggering run is downloaded or executed. The GitHub client only fetches constructed API paths (a check-run id is extracted from the URL rather than following it). Preserve these.
+- The big status icon follows the WIB day, not just the latest run: green `success` once today has a commit, yellow spinning `pending` while today has none yet (including after a failed attempt with retries left, and while a run is in progress), red `failure` only after a day ended without a commit or when the latest run failed on top of a missed day (`statusCopy()`/`dailyActivity()` in `status.js`). The same `pending` state colors today's bar in the activity chart.
 - The page must never show a fake success: missing/initial snapshots render a "waiting" state, and demo data is only loaded with an explicit `?demo=` param and is labelled as such.
 - Don't hand-edit `data/activity.json`; the daily workflow owns it. Commits titled `chore: daily activity …` in history are automated.
 - New scripts follow the existing pattern: export pure functions taking injectable `env`/`cwd`/`now`/`fetchImpl`/`get`, and run only when invoked as the entry point, so tests can import them.
