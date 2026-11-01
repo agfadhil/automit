@@ -16,7 +16,7 @@ const icons = {
   running: '<path d="M16 6a10 10 0 1 0 10 10"/><path d="m21 6 5 1-1 5"/>',
   cancelled: '<path d="M12 10v12m8-12v12"/>',
   waiting: '<circle cx="16" cy="16" r="10"/><path d="M16 10v6l4 3"/>',
-  pending: '<circle cx="16" cy="16" r="10" opacity=".3"/><path d="M16 6a10 10 0 0 1 10 10"/>',
+  pending: '<path d="M10 6h12M10 26h12"/><path d="M12 6v4c0 3 4 4.5 4 6s-4 3-4 6v4M20 6v4c0 3-4 4.5-4 6s4 3 4 6v4"/>',
 };
 
 function symbol(state) { return `<svg viewBox="0 0 32 32" aria-hidden="true">${icons[state] || icons.waiting}</svg>`; }
